@@ -1,0 +1,278 @@
+let currentId = null;
+let currentUser = null;
+
+const historyEl = document.getElementById("history");
+const messagesEl = document.getElementById("messages");
+const welcomeEl = document.getElementById("welcome");
+const promptEl = document.getElementById("prompt");
+const sidebar = document.querySelector(".sidebar");
+const modelSelect = document.getElementById("modelSelect");
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
+}
+
+function parseMarkdown(text) {
+  const blocks = [];
+  let html = text.replace(/```([\w#+.-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const id = blocks.length;
+    const langClass = lang ? `language-${escapeHtml(lang)}` : '';
+    blocks.push(`<pre><button class="copy-code-btn" onclick="copyCode(this)">Copy</button><code class="${langClass}">${escapeHtml(code.trim())}</code></pre>`);
+    return `@@CODE_BLOCK_${id}@@`;
+  });
+
+  html = escapeHtml(html).replace(/\n/g, "<br>");
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+  blocks.forEach((b, i) => {
+    html = html.replace(`@@CODE_BLOCK_${i}@@`, b);
+  });
+  return html;
+}
+
+window.copyCode = async btn => {
+  const code = btn.parentElement.querySelector("code").innerText;
+  await navigator.clipboard.writeText(code);
+  btn.textContent = "Copied!";
+  setTimeout(() => btn.textContent = "Copy", 1400);
+};
+
+async function api(url, opts = {}) {
+  const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
+  if (r.status === 401) {
+    window.location.href = "/login";
+    return;
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || "Request failed");
+  return data;
+}
+
+async function initUser() {
+  try {
+    currentUser = await api("/api/me");
+    if (currentUser) {
+      document.getElementById("userName").textContent = currentUser.name;
+      document.getElementById("userEmail").textContent = currentUser.email;
+      const avatarEl = document.getElementById("userAvatar");
+      avatarEl.src = currentUser.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(currentUser.email)}`;
+    }
+  } catch (e) {
+    window.location.href = "/login";
+  }
+}
+
+async function initModels() {
+  try {
+    const data = await api("/api/models");
+    modelSelect.innerHTML = "";
+    data.models.forEach(m => {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.name;
+      if (m.id === data.default) opt.selected = true;
+      modelSelect.appendChild(opt);
+    });
+  } catch (e) {
+    console.error("Failed to load models", e);
+  }
+}
+
+async function refreshHistory() {
+  const rows = await api("/api/conversations");
+  if (!rows) return;
+  historyEl.innerHTML = "";
+  rows.forEach(c => {
+    const wrap = document.createElement("div");
+    wrap.className = `history-item ${c.id === currentId ? 'active' : ''}`;
+    const b = document.createElement("button");
+    b.className = "title";
+    b.textContent = c.title;
+    b.onclick = () => loadConversation(c.id);
+    wrap.appendChild(b);
+    historyEl.appendChild(wrap);
+  });
+}
+
+function renderConversation(c) {
+  currentId = c?.id || null;
+  messagesEl.innerHTML = "";
+  const msgs = c?.messages || [];
+  welcomeEl.style.display = msgs.length ? "none" : "block";
+
+  msgs.forEach(m => {
+    appendMessageUI(m.role, m.content);
+  });
+
+  if (window.hljs) hljs.highlightAll();
+  const chatSec = document.getElementById("chat");
+  chatSec.scrollTop = chatSec.scrollHeight;
+  refreshHistory();
+}
+
+function appendMessageUI(role, contentText) {
+  const div = document.createElement("div");
+  div.className = `message ${role}`;
+  const isUser = role === "user";
+  const avatarText = isUser ? (currentUser?.name?.[0] || "U") : "&lt;/&gt;";
+  
+  div.innerHTML = `
+    <div class="avatar">${avatarText}</div>
+    <div class="bubble">
+      <div class="role-title">${isUser ? "You" : "CodeForge AI"}</div>
+      <div class="content">${parseMarkdown(contentText)}</div>
+    </div>
+  `;
+  messagesEl.appendChild(div);
+  return div;
+}
+
+async function loadConversation(id) {
+  const c = await api(`/api/conversations/${id}`);
+  renderConversation(c);
+  sidebar.classList.remove("open");
+}
+
+async function send() {
+  const message = promptEl.value.trim();
+  if (!message) return;
+
+  promptEl.value = "";
+  resizePrompt();
+  welcomeEl.style.display = "none";
+
+  // Render User Message
+  appendMessageUI("user", message);
+
+  // Render Assistant Loading Bubble with Cursor
+  const loadDiv = document.createElement("div");
+  loadDiv.className = "message assistant";
+  loadDiv.innerHTML = `
+    <div class="avatar">&lt;/&gt;</div>
+    <div class="bubble">
+      <div class="role-title">CodeForge AI</div>
+      <div class="content"><span class="streaming-cursor"></span></div>
+    </div>
+  `;
+  messagesEl.appendChild(loadDiv);
+  const contentEl = loadDiv.querySelector(".content");
+
+  const chatSec = document.getElementById("chat");
+  chatSec.scrollTop = chatSec.scrollHeight;
+
+  const selectedModel = modelSelect.value;
+  let responseText = "";
+
+  try {
+    const response = await fetch("/api/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation_id: currentId,
+        message: message,
+        model: selectedModel
+      })
+    });
+
+    if (response.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.detail || "Error connecting to AI stream");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.replace("data: ", "").trim();
+          try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.type === "init") {
+              currentId = parsed.conversation_id;
+            } else if (parsed.type === "token") {
+              responseText += parsed.token;
+              contentEl.innerHTML = parseMarkdown(responseText) + '<span class="streaming-cursor"></span>';
+              chatSec.scrollTop = chatSec.scrollHeight;
+            } else if (parsed.type === "done") {
+              contentEl.innerHTML = parseMarkdown(responseText);
+              if (window.hljs) hljs.highlightAll();
+              refreshHistory();
+            }
+          } catch (e) {
+            console.error("SSE parse error", e);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    contentEl.innerHTML = `<span style="color:#ef4444;">Error: ${escapeHtml(e.message)}</span>`;
+  }
+}
+
+function resizePrompt() {
+  promptEl.style.height = "auto";
+  promptEl.style.height = Math.min(promptEl.scrollHeight, 180) + "px";
+}
+
+promptEl.addEventListener("input", resizePrompt);
+promptEl.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
+
+document.getElementById("sendBtn").onclick = send;
+document.getElementById("newChat").onclick = () => renderConversation(null);
+document.getElementById("themeBtn").onclick = () => document.body.classList.toggle("dark");
+document.getElementById("mobileMenu").onclick = () => sidebar.classList.toggle("open");
+document.querySelectorAll("[data-prompt]").forEach(b => {
+  b.onclick = () => {
+    promptEl.value = b.dataset.prompt;
+    promptEl.focus();
+    resizePrompt();
+  };
+});
+
+document.getElementById("deleteBtn").onclick = async () => {
+  if (!currentId) return;
+  if (confirm("Are you sure you want to delete this conversation?")) {
+    await api(`/api/conversations/${currentId}`, { method: "DELETE" });
+    renderConversation(null);
+    await refreshHistory();
+  }
+};
+
+document.getElementById("exportBtn").onclick = async () => {
+  if (!currentId) return alert("Open a conversation first.");
+  const c = await api(`/api/conversations/${currentId}`);
+  const text = c.messages.map(m => `${m.role.toUpperCase()}:\n${m.content}\n`).join("\n---\n\n");
+  const blob = new Blob([text], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${c.title.replace(/[^\w-]+/g, "_")}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+// Initialize Application
+(async () => {
+  await initUser();
+  await initModels();
+  await refreshHistory();
+})();

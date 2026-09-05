@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CodeMind Studio - Developer AI Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Highlight.js Theme -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="logo">&lt;/&gt;</span>
+      <strong>CodeMind Studio</strong>
+    </div>
+    
+    <button id="newChat" class="new-chat">＋ New chat</button>
+    
+    <div class="side-label">CONVERSATIONS</div>
+    <div id="history" class="history"></div>
+
+    <div class="sidebar-bottom">
+      <div id="userCard" class="user-card">
+        <img id="userAvatar" class="avatar-img" src="" alt="User">
+        <div class="user-info">
+          <div id="userName" class="user-name">Loading...</div>
+          <div id="userEmail" class="user-email">...</div>
+        </div>
+      </div>
+      
+      <div class="side-actions">
+        <button id="themeBtn" class="side-action">◐ Theme</button>
+        <button id="exportBtn" class="side-action">⇩ Export</button>
+        <a href="/auth/logout" id="logoutBtn" class="side-action danger-link">⎋ Logout</a>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header>
+      <div class="header-left">
+        <button id="mobileMenu" class="icon-btn">☰</button>
+        <div class="model-picker-wrap">
+          <label for="modelSelect" class="model-label">Model:</label>
+          <select id="modelSelect" class="model-select">
+            <!-- Populated via API -->
+          </select>
+        </div>
+      </div>
+      
+      <div class="header-right">
+        <button id="deleteBtn" class="icon-btn danger" title="Delete chat">⌫</button>
+      </div>
+    </header>
+
+    <section id="chat" class="chat">
+      <div id="welcome" class="welcome">
+        <div class="welcome-icon">&lt;/&gt;</div>
+        <h1>What are we building today?</h1>
+        <p>Your open-source AI pair programmer. Ask me to generate code, fix bugs, refactor architecture, write tests, or explain algorithms.</p>
+
+        <div class="suggestions">
+          <button data-prompt="Build a FastAPI REST API with CRUD operations and SQLite database.">Build a FastAPI REST API</button>
+          <button data-prompt="Debug this code. I will paste the code and stack trace next.">Debug code error</button>
+          <button data-prompt="Explain this algorithm step by step with clear comments. I will paste it next.">Explain code step-by-step</button>
+          <button data-prompt="Optimize and refactor this function for maximum performance and readability.">Optimize & refactor code</button>
+        </div>
+      </div>
+      <div id="messages"></div>
+    </section>
+
+    <footer class="composer-wrap">
+      <div class="composer">
+        <textarea id="prompt" rows="1" placeholder="Ask CodeForge AI anything..."></textarea>
+        <button id="sendBtn" class="send" title="Send message">➤</button>
+      </div>
+      <div class="hint">Enter to send • Shift+Enter for newline • AI suggestions should be reviewed before deployment</div>
+    </footer>
+  </main>
+</div>
+
+<!-- Highlight.js Library for syntax highlighting -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
