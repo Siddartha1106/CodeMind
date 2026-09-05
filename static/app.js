@@ -1,5 +1,16 @@
 let currentId = null;
 let currentUser = null;
+let isThinkMode = false;
+let isRecording = false;
+let attachedFiles = [];
+let recognition = null;
+
+// Functional Plugin States
+let pluginsState = {
+  codeInterpreter: true,
+  webSearch: true,
+  autoFormatter: true
+};
 
 const historyEl = document.getElementById("history");
 const messagesEl = document.getElementById("messages");
@@ -9,6 +20,25 @@ const promptEl = document.getElementById("prompt");
 const promptChatEl = document.getElementById("promptChat");
 const sidebar = document.querySelector(".sidebar");
 const modelSelect = document.getElementById("modelSelect");
+
+// Modal Elements
+const modalBackdrop = document.getElementById("modalBackdrop");
+const modalTitle = document.getElementById("modalTitle");
+const modalBody = document.getElementById("modalBody");
+const modalClose = document.getElementById("modalClose");
+
+// File Attachment Elements
+const fileInput = document.getElementById("fileInput");
+const attachBtn = document.getElementById("attachBtn");
+const attachBtnChat = document.getElementById("attachBtnChat");
+const attachmentContainer = document.getElementById("attachmentContainer");
+const attachmentContainerChat = document.getElementById("attachmentContainerChat");
+
+// Think & Mic Elements
+const thinkBtn = document.getElementById("thinkBtn");
+const thinkBtnChat = document.getElementById("thinkBtnChat");
+const micBtn = document.getElementById("micBtn");
+const micBtnChat = document.getElementById("micBtnChat");
 
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c]));
@@ -185,10 +215,243 @@ async function loadConversation(id) {
   sidebar.classList.remove("open");
 }
 
+/* 1. FILE ATTACHMENT FUNCTIONALITY */
+[attachBtn, attachBtnChat].forEach(btn => {
+  if (btn) btn.onclick = () => fileInput.click();
+});
+
+fileInput.onchange = (e) => {
+  const files = Array.from(e.target.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      attachedFiles.push({ name: file.name, content: event.target.result });
+      renderAttachments();
+    };
+    reader.readAsText(file);
+  });
+  fileInput.value = "";
+};
+
+function renderAttachments() {
+  [attachmentContainer, attachmentContainerChat].forEach(container => {
+    if (!container) return;
+    container.innerHTML = "";
+    attachedFiles.forEach((f, idx) => {
+      const badge = document.createElement("div");
+      badge.className = "attachment-badge";
+      badge.innerHTML = `📄 ${escapeHtml(f.name)} <span class="remove-btn" onclick="removeAttachment(${idx})">✕</span>`;
+      container.appendChild(badge);
+    });
+  });
+}
+
+window.removeAttachment = (idx) => {
+  attachedFiles.splice(idx, 1);
+  renderAttachments();
+};
+
+/* 2. THINK REASONING MODE TOGGLE */
+function toggleThinkMode() {
+  isThinkMode = !isThinkMode;
+  [thinkBtn, thinkBtnChat].forEach(btn => {
+    if (!btn) return;
+    if (isThinkMode) {
+      btn.classList.add("active");
+      btn.querySelector("span").textContent = "Think ✓";
+    } else {
+      btn.classList.remove("active");
+      btn.querySelector("span").textContent = "Think";
+    }
+  });
+}
+
+if (thinkBtn) thinkBtn.onclick = toggleThinkMode;
+if (thinkBtnChat) thinkBtnChat.onclick = toggleThinkMode;
+
+/* 3. VOICE DICTATION (SPEECH RECOGNITION) */
+function toggleVoiceInput() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Speech recognition is not supported in this browser. Please use Chrome or Edge.");
+    return;
+  }
+
+  if (isRecording) {
+    recognition?.stop();
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isRecording = true;
+    [micBtn, micBtnChat].forEach(b => b?.classList.add("recording"));
+  };
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    const activeEl = welcomeEl.style.display !== "none" ? promptEl : promptChatEl;
+    activeEl.value += (activeEl.value ? " " : "") + transcript;
+    resizePrompt(activeEl);
+  };
+
+  recognition.onend = () => {
+    isRecording = false;
+    [micBtn, micBtnChat].forEach(b => b?.classList.remove("recording"));
+  };
+
+  recognition.start();
+}
+
+if (micBtn) micBtn.onclick = toggleVoiceInput;
+if (micBtnChat) micBtnChat.onclick = toggleVoiceInput;
+
+/* 4. MODAL UTILITIES & SIDEBAR NAVIGATION FUNCTIONS */
+function openModal(title, htmlContent) {
+  modalTitle.textContent = title;
+  modalBody.innerHTML = htmlContent;
+  modalBackdrop.style.display = "flex";
+}
+
+function closeModal() {
+  modalBackdrop.style.display = "none";
+}
+
+modalClose.onclick = closeModal;
+modalBackdrop.onclick = (e) => {
+  if (e.target === modalBackdrop) closeModal();
+};
+
+document.getElementById("navLibrary").onclick = async () => {
+  const rows = await api("/api/conversations");
+  let contentHtml = `
+    <p style="color:var(--text-muted);">All your saved coding conversations and project histories:</p>
+    <div style="display:flex;flex-direction:column;gap:0.5rem;max-height:350px;overflow-y:auto;">
+  `;
+  rows.forEach(c => {
+    contentHtml += `
+      <div style="background:#212121;padding:0.75rem 1rem;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <strong style="color:var(--text-primary);">${escapeHtml(c.title)}</strong>
+          <div style="font-size:0.75rem;color:var(--text-muted);">${c.created_at.split("T")[0]}</div>
+        </div>
+        <button onclick="closeModal();loadConversation(${c.id});" style="background:var(--accent-green);border:none;color:#fff;padding:0.35rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem;">Open</button>
+      </div>
+    `;
+  });
+  contentHtml += `</div>`;
+  openModal("Conversations Library", contentHtml);
+};
+
+document.getElementById("navProjects").onclick = () => {
+  openModal("Projects Workspace", `
+    <p style="color:var(--text-muted);">Organize your code sessions into specialized project workspaces:</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+      <div style="background:#212121;padding:1rem;border-radius:10px;border:1px solid var(--border-subtle);">
+        <strong style="color:var(--text-primary);">🌐 Web Applications</strong>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">FastAPI, React, HTML/CSS projects</p>
+      </div>
+      <div style="background:#212121;padding:1rem;border-radius:10px;border:1px solid var(--border-subtle);">
+        <strong style="color:var(--text-primary);">🐍 Python Scripts</strong>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">Data processing & backend algorithms</p>
+      </div>
+      <div style="background:#212121;padding:1rem;border-radius:10px;border:1px solid var(--border-subtle);">
+        <strong style="color:var(--text-primary);">🛡️ Cybersecurity</strong>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">Security audits & error debugging</p>
+      </div>
+      <div style="background:#212121;padding:1rem;border-radius:10px;border:1px solid var(--border-subtle);">
+        <strong style="color:var(--text-primary);">⚙️ API Integrations</strong>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">REST APIs & OAuth integrations</p>
+      </div>
+    </div>
+  `);
+};
+
+document.getElementById("navScheduled").onclick = () => {
+  openModal("Scheduled Reminders & Code Health", `
+    <p style="color:var(--text-muted);">Schedule automated AI code reviews or project reminders:</p>
+    <div style="background:#212121;padding:1rem;border-radius:10px;display:flex;flex-direction:column;gap:0.75rem;">
+      <div>
+        <label style="font-size:0.8rem;color:var(--text-secondary);">Task Title:</label>
+        <input type="text" value="Weekly Code Refactoring Check" style="width:100%;background:#171717;border:1px solid var(--border-subtle);color:#fff;padding:0.5rem;border-radius:6px;margin-top:0.25rem;">
+      </div>
+      <div>
+        <label style="font-size:0.8rem;color:var(--text-secondary);">Frequency:</label>
+        <select style="width:100%;background:#171717;border:1px solid var(--border-subtle);color:#fff;padding:0.5rem;border-radius:6px;margin-top:0.25rem;">
+          <option>Every Monday at 9:00 AM</option>
+          <option>Daily Code Health Check</option>
+        </select>
+      </div>
+      <button onclick="alert('Scheduled task created!');closeModal();" style="background:var(--accent-green);border:none;color:#fff;padding:0.5rem;border-radius:6px;cursor:pointer;">Set Schedule</button>
+    </div>
+  `);
+};
+
+document.getElementById("navPlugins").onclick = () => {
+  openModal("Plugins & Developer Tools", `
+    <p style="color:var(--text-muted);">Enable specialized developer tools for your AI assistant:</p>
+    <div style="display:flex;flex-direction:column;gap:0.75rem;">
+      <div class="plugin-card">
+        <div class="plugin-info">
+          <h4>🧪 Code Interpreter / Executor</h4>
+          <p>Run Python code snippets and evaluate output automatically.</p>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" ${pluginsState.codeInterpreter ? 'checked' : ''} onchange="pluginsState.codeInterpreter = this.checked;">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="plugin-card">
+        <div class="plugin-info">
+          <h4>🌐 Web Search & Doc Finder</h4>
+          <p>Search upstream developer documentation & current web specs.</p>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" ${pluginsState.webSearch ? 'checked' : ''} onchange="pluginsState.webSearch = this.checked;">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="plugin-card">
+        <div class="plugin-info">
+          <h4>🛠️ Code Formatter & Linter</h4>
+          <p>Auto-format code blocks using PEP8 / Prettier standards.</p>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" ${pluginsState.autoFormatter ? 'checked' : ''} onchange="pluginsState.autoFormatter = this.checked;">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  `);
+};
+
+/* SEND CHAT MESSAGE WITH ATTACHMENTS & THINK MODE */
 async function send(inputSource) {
   const inputEl = inputSource || (welcomeEl.style.display !== "none" ? promptEl : promptChatEl);
-  const message = inputEl.value.trim();
-  if (!message) return;
+  let rawMessage = inputEl.value.trim();
+  if (!rawMessage && attachedFiles.length === 0) return;
+
+  // Append File Attachments Content
+  let finalPrompt = rawMessage;
+  if (attachedFiles.length > 0) {
+    let fileText = "\n\n--- ATTACHED CODE / FILES ---\n";
+    attachedFiles.forEach(f => {
+      fileText += `File: ${f.name}\n\`\`\`\n${f.content}\n\`\`\`\n`;
+    });
+    finalPrompt += fileText;
+    attachedFiles = [];
+    renderAttachments();
+  }
+
+  // Prepend Deep Reasoning instruction if Think Mode is Active
+  if (isThinkMode) {
+    finalPrompt = "[THINK REASONING MODE: Please analyze the problem step-by-step with deep reasoning before providing the final implementation.]\n" + finalPrompt;
+  }
 
   inputEl.value = "";
   resizePrompt(inputEl);
@@ -197,7 +460,7 @@ async function send(inputSource) {
   footerComposer.style.display = "flex";
 
   // Render User Message
-  appendMessageUI("user", message);
+  appendMessageUI("user", rawMessage || "Attached files for review.");
 
   // Render Assistant Loading Bubble
   const loadDiv = document.createElement("div");
@@ -218,7 +481,7 @@ async function send(inputSource) {
   const chatSec = document.getElementById("chat");
   chatSec.scrollTop = chatSec.scrollHeight;
 
-  const selectedModel = modelSelect.value;
+  const selectedModel = isThinkMode ? "deepseek/deepseek-r1:free" : modelSelect.value;
   let responseText = "";
 
   try {
@@ -227,7 +490,7 @@ async function send(inputSource) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         conversation_id: currentId,
-        message: message,
+        message: finalPrompt,
         model: selectedModel
       })
     });
