@@ -481,7 +481,7 @@ async function send(inputSource) {
   const chatSec = document.getElementById("chat");
   chatSec.scrollTop = chatSec.scrollHeight;
 
-  const selectedModel = isThinkMode ? "deepseek/deepseek-r1:free" : modelSelect.value;
+  const selectedModel = isThinkMode ? "openai/gpt-oss-120b" : modelSelect.value;
   let responseText = "";
 
   try {

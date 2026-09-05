@@ -33,7 +33,7 @@ DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen/qwen-2.5-coder-32b-instruct:fre
 
 
 def get_api_credentials(selected_model: str = None):
-    provider = os.getenv("LLM_PROVIDER", "openrouter").lower()
+    provider = os.getenv("LLM_PROVIDER", "groq").lower()
     
     openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
     groq_key = os.getenv("GROQ_API_KEY", "")
@@ -79,7 +79,7 @@ async def generate_stream(messages: list, model: str = None):
     headers = {
         "Content-Type": "application/json",
         "HTTP-Referer": os.getenv("APP_URL", "http://localhost:8000"),
-        "X-Title": "CodeForge AI Assistant"
+        "X-Title": "CodeMind AI Assistant"
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
