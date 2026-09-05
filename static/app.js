@@ -4,7 +4,9 @@ let currentUser = null;
 const historyEl = document.getElementById("history");
 const messagesEl = document.getElementById("messages");
 const welcomeEl = document.getElementById("welcome");
+const footerComposer = document.getElementById("footerComposer");
 const promptEl = document.getElementById("prompt");
+const promptChatEl = document.getElementById("promptChat");
 const sidebar = document.querySelector(".sidebar");
 const modelSelect = document.getElementById("modelSelect");
 
@@ -82,9 +84,15 @@ async function initUser() {
     currentUser = await api("/api/me");
     if (currentUser) {
       document.getElementById("userName").textContent = currentUser.name;
-      document.getElementById("userEmail").textContent = currentUser.email;
+      const firstName = currentUser.name.split(" ")[0] || "Developer";
+      document.getElementById("heroGreeting").textContent = `Hey, ${firstName}. Ready to dive in?`;
+      
       const avatarEl = document.getElementById("userAvatar");
-      avatarEl.src = currentUser.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(currentUser.email)}`;
+      if (currentUser.avatar_url) {
+        avatarEl.src = currentUser.avatar_url;
+      } else {
+        avatarEl.style.display = "none";
+      }
     }
   } catch (e) {
     window.location.href = "/login";
@@ -127,7 +135,14 @@ function renderConversation(c) {
   currentId = c?.id || null;
   messagesEl.innerHTML = "";
   const msgs = c?.messages || [];
-  welcomeEl.style.display = msgs.length ? "none" : "block";
+  
+  if (msgs.length) {
+    welcomeEl.style.display = "none";
+    footerComposer.style.display = "flex";
+  } else {
+    welcomeEl.style.display = "flex";
+    footerComposer.style.display = "none";
+  }
 
   msgs.forEach(m => {
     appendMessageUI(m.role, m.content);
@@ -145,12 +160,12 @@ function appendMessageUI(role, contentText) {
   const isUser = role === "user";
   
   const userAvatarHtml = currentUser?.avatar_url 
-    ? `<img src="${currentUser.avatar_url}" style="width:100%;height:100%;border-radius:2px;object-fit:cover;">`
+    ? `<img src="${currentUser.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`
     : (currentUser?.name?.[0] || "U");
 
   const avatarContent = isUser 
     ? userAvatarHtml 
-    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+    : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
   
   div.innerHTML = `
     <div class="message-inner">
@@ -170,24 +185,27 @@ async function loadConversation(id) {
   sidebar.classList.remove("open");
 }
 
-async function send() {
-  const message = promptEl.value.trim();
+async function send(inputSource) {
+  const inputEl = inputSource || (welcomeEl.style.display !== "none" ? promptEl : promptChatEl);
+  const message = inputEl.value.trim();
   if (!message) return;
 
-  promptEl.value = "";
-  resizePrompt();
+  inputEl.value = "";
+  resizePrompt(inputEl);
+
   welcomeEl.style.display = "none";
+  footerComposer.style.display = "flex";
 
   // Render User Message
   appendMessageUI("user", message);
 
-  // Render Assistant Loading Bubble with ChatGPT Cursor
+  // Render Assistant Loading Bubble
   const loadDiv = document.createElement("div");
   loadDiv.className = "message assistant";
   loadDiv.innerHTML = `
     <div class="message-inner">
       <div class="avatar">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
       </div>
       <div class="bubble">
         <div class="content"><span class="streaming-cursor"></span></div>
@@ -263,28 +281,37 @@ async function send() {
   }
 }
 
-function resizePrompt() {
-  promptEl.style.height = "auto";
-  promptEl.style.height = Math.min(promptEl.scrollHeight, 200) + "px";
+function resizePrompt(el) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 180) + "px";
 }
 
-promptEl.addEventListener("input", resizePrompt);
-promptEl.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    send();
-  }
+[promptEl, promptChatEl].forEach(el => {
+  if (!el) return;
+  el.addEventListener("input", () => resizePrompt(el));
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send(el);
+    }
+  });
 });
 
-document.getElementById("sendBtn").onclick = send;
+document.getElementById("sendBtn").onclick = () => send(promptEl);
+const sendBtnChat = document.getElementById("sendBtnChat");
+if (sendBtnChat) sendBtnChat.onclick = () => send(promptChatEl);
+
 document.getElementById("newChat").onclick = () => renderConversation(null);
 document.getElementById("themeBtn").onclick = () => document.body.classList.toggle("light");
 document.getElementById("mobileMenu").onclick = () => sidebar.classList.toggle("open");
+
 document.querySelectorAll("[data-prompt]").forEach(b => {
   b.onclick = () => {
-    promptEl.value = b.dataset.prompt;
-    promptEl.focus();
-    resizePrompt();
+    const activeEl = welcomeEl.style.display !== "none" ? promptEl : promptChatEl;
+    activeEl.value = b.dataset.prompt;
+    activeEl.focus();
+    resizePrompt(activeEl);
   };
 });
 
