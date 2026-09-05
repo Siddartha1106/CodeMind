@@ -24,7 +24,7 @@ AVAILABLE_MODELS = [
     {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (OpenRouter Free)", "provider": "openrouter"},
     {"id": "deepseek/deepseek-r1:free", "name": "DeepSeek R1 Reasoning (OpenRouter Free)", "provider": "openrouter"},
     {"id": "google/gemini-2.0-flash-exp:free", "name": "Gemini 2.0 Flash (OpenRouter Free)", "provider": "openrouter"},
-    {"id": "llama-3.3-70b-versatile", "name": "Llama 3.3 70B (Groq Free - Super Fast)", "provider": "groq"},
+    {"id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B (Groq)", "provider": "groq"},
     {"id": "qwen-2.5-coder-32b", "name": "Qwen 2.5 Coder 32B (Groq Free)", "provider": "groq"},
 ]
 
@@ -42,7 +42,7 @@ def get_api_credentials(selected_model: str = None):
 
     # Priority determination based on available keys
     if provider == "groq" and groq_key:
-        return "https://api.groq.com/openai/v1/chat/completions", groq_key, selected_model or "llama-3.3-70b-versatile"
+        return "https://api.groq.com/openai/v1/chat/completions", groq_key, selected_model or "llama-3.1-8b-instant"
     elif provider == "openai" and openai_key:
         return "https://api.openai.com/v1/chat/completions", openai_key, selected_model or "gpt-4o-mini"
     elif provider == "openrouter" and openrouter_key:
@@ -50,7 +50,7 @@ def get_api_credentials(selected_model: str = None):
     elif openrouter_key:
         return "https://openrouter.ai/api/v1/chat/completions", openrouter_key, selected_model or DEFAULT_MODEL
     elif groq_key:
-        return "https://api.groq.com/openai/v1/chat/completions", groq_key, selected_model or "llama-3.3-70b-versatile"
+        return "https://api.groq.com/openai/v1/chat/completions", groq_key, selected_model or "llama-3.1-8b-instant"
     elif openai_key:
         return "https://api.openai.com/v1/chat/completions", openai_key, selected_model or "gpt-4o-mini"
     elif gemini_key:
