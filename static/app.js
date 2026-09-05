@@ -17,7 +17,22 @@ function parseMarkdown(text) {
   let html = text.replace(/```([\w#+.-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const id = blocks.length;
     const langClass = lang ? `language-${escapeHtml(lang)}` : '';
-    blocks.push(`<pre><button class="copy-code-btn" onclick="copyCode(this)">Copy</button><code class="${langClass}">${escapeHtml(code.trim())}</code></pre>`);
+    const displayLang = lang ? escapeHtml(lang) : 'code';
+    blocks.push(`
+      <pre>
+        <div class="code-header">
+          <span>${displayLang}</span>
+          <button class="copy-code-btn" onclick="copyCode(this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            Copy code
+          </button>
+        </div>
+        <code class="${langClass}">${escapeHtml(code.trim())}</code>
+      </pre>
+    `);
     return `@@CODE_BLOCK_${id}@@`;
   });
 
@@ -32,10 +47,23 @@ function parseMarkdown(text) {
 }
 
 window.copyCode = async btn => {
-  const code = btn.parentElement.querySelector("code").innerText;
+  const code = btn.parentElement.parentElement.querySelector("code").innerText;
   await navigator.clipboard.writeText(code);
-  btn.textContent = "Copied!";
-  setTimeout(() => btn.textContent = "Copy", 1400);
+  btn.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    Copied!
+  `;
+  setTimeout(() => {
+    btn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      Copy code
+    `;
+  }, 1600);
 };
 
 async function api(url, opts = {}) {
@@ -115,13 +143,21 @@ function appendMessageUI(role, contentText) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   const isUser = role === "user";
-  const avatarText = isUser ? (currentUser?.name?.[0] || "U") : "&lt;/&gt;";
+  
+  const userAvatarHtml = currentUser?.avatar_url 
+    ? `<img src="${currentUser.avatar_url}" style="width:100%;height:100%;border-radius:2px;object-fit:cover;">`
+    : (currentUser?.name?.[0] || "U");
+
+  const avatarContent = isUser 
+    ? userAvatarHtml 
+    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
   
   div.innerHTML = `
-    <div class="avatar">${avatarText}</div>
-    <div class="bubble">
-      <div class="role-title">${isUser ? "You" : "CodeForge AI"}</div>
-      <div class="content">${parseMarkdown(contentText)}</div>
+    <div class="message-inner">
+      <div class="avatar">${avatarContent}</div>
+      <div class="bubble">
+        <div class="content">${parseMarkdown(contentText)}</div>
+      </div>
     </div>
   `;
   messagesEl.appendChild(div);
@@ -145,14 +181,17 @@ async function send() {
   // Render User Message
   appendMessageUI("user", message);
 
-  // Render Assistant Loading Bubble with Cursor
+  // Render Assistant Loading Bubble with ChatGPT Cursor
   const loadDiv = document.createElement("div");
   loadDiv.className = "message assistant";
   loadDiv.innerHTML = `
-    <div class="avatar">&lt;/&gt;</div>
-    <div class="bubble">
-      <div class="role-title">CodeForge AI</div>
-      <div class="content"><span class="streaming-cursor"></span></div>
+    <div class="message-inner">
+      <div class="avatar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+      </div>
+      <div class="bubble">
+        <div class="content"><span class="streaming-cursor"></span></div>
+      </div>
     </div>
   `;
   messagesEl.appendChild(loadDiv);
@@ -226,7 +265,7 @@ async function send() {
 
 function resizePrompt() {
   promptEl.style.height = "auto";
-  promptEl.style.height = Math.min(promptEl.scrollHeight, 180) + "px";
+  promptEl.style.height = Math.min(promptEl.scrollHeight, 200) + "px";
 }
 
 promptEl.addEventListener("input", resizePrompt);
@@ -239,7 +278,7 @@ promptEl.addEventListener("keydown", e => {
 
 document.getElementById("sendBtn").onclick = send;
 document.getElementById("newChat").onclick = () => renderConversation(null);
-document.getElementById("themeBtn").onclick = () => document.body.classList.toggle("dark");
+document.getElementById("themeBtn").onclick = () => document.body.classList.toggle("light");
 document.getElementById("mobileMenu").onclick = () => sidebar.classList.toggle("open");
 document.querySelectorAll("[data-prompt]").forEach(b => {
   b.onclick = () => {

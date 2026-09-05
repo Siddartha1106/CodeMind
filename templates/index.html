@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CodeMind Studio - Developer AI Workspace</title>
+  <title>ChatGPT - CodeMind Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,14 +14,15 @@
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand">
-      <span class="logo">&lt;/&gt;</span>
-      <strong>CodeMind Studio</strong>
-    </div>
+    <button id="newChat" class="new-chat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      New chat
+    </button>
     
-    <button id="newChat" class="new-chat">＋ New chat</button>
-    
-    <div class="side-label">CONVERSATIONS</div>
+    <div class="side-label">TODAY</div>
     <div id="history" class="history"></div>
 
     <div class="sidebar-bottom">
@@ -34,7 +35,7 @@
       </div>
       
       <div class="side-actions">
-        <button id="themeBtn" class="side-action">◐ Theme</button>
+        <button id="themeBtn" class="side-action">◐ Mode</button>
         <button id="exportBtn" class="side-action">⇩ Export</button>
         <a href="/auth/logout" id="logoutBtn" class="side-action danger-link">⎋ Logout</a>
       </div>
@@ -46,7 +47,6 @@
       <div class="header-left">
         <button id="mobileMenu" class="icon-btn">☰</button>
         <div class="model-picker-wrap">
-          <label for="modelSelect" class="model-label">Model:</label>
           <select id="modelSelect" class="model-select">
             <!-- Populated via API -->
           </select>
@@ -54,15 +54,25 @@
       </div>
       
       <div class="header-right">
-        <button id="deleteBtn" class="icon-btn danger" title="Delete chat">⌫</button>
+        <button id="deleteBtn" class="icon-btn" title="Delete conversation">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
       </div>
     </header>
 
     <section id="chat" class="chat">
       <div id="welcome" class="welcome">
-        <div class="welcome-icon">&lt;/&gt;</div>
-        <h1>What are we building today?</h1>
-        <p>Your open-source AI pair programmer. Ask me to generate code, fix bugs, refactor architecture, write tests, or explain algorithms.</p>
+        <div class="welcome-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <h1>ChatGPT</h1>
+        <p>How can I help you today?</p>
 
         <div class="suggestions">
           <button data-prompt="Build a FastAPI REST API with CRUD operations and SQLite database.">Build a FastAPI REST API</button>
@@ -76,10 +86,15 @@
 
     <footer class="composer-wrap">
       <div class="composer">
-        <textarea id="prompt" rows="1" placeholder="Ask CodeForge AI anything..."></textarea>
-        <button id="sendBtn" class="send" title="Send message">➤</button>
+        <textarea id="prompt" rows="1" placeholder="Send a message..."></textarea>
+        <button id="sendBtn" class="send" title="Send message">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
       </div>
-      <div class="hint">Enter to send • Shift+Enter for newline • AI suggestions should be reviewed before deployment</div>
+      <div class="hint">ChatGPT can make mistakes. Consider checking important information.</div>
     </footer>
   </main>
 </div>
