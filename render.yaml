@@ -10,7 +10,7 @@ services:
       - key: LLM_PROVIDER
         value: gemini
       - key: DEFAULT_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.6-flash
       - key: ALLOW_GUEST_LOGIN
         value: "true"
       - key: GEMINI_API_KEY
