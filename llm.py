@@ -23,17 +23,17 @@ AVAILABLE_MODELS = [
     {"id": "qwen/qwen-2.5-coder-32b-instruct:free", "name": "Qwen 2.5 Coder 32B (OpenRouter Free)", "provider": "openrouter"},
     {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (OpenRouter Free)", "provider": "openrouter"},
     {"id": "deepseek/deepseek-r1:free", "name": "DeepSeek R1 Reasoning (OpenRouter Free)", "provider": "openrouter"},
-    {"id": "google/gemini-2.0-flash-exp:free", "name": "Gemini 2.0 Flash (OpenRouter Free)", "provider": "openrouter"},
+    {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash (Google)", "provider": "gemini"},
     {"id": "llama-3.1-8b-instant", "name": "Llama 3.1 8B (Groq)", "provider": "groq"},
     {"id": "qwen-2.5-coder-32b", "name": "Qwen 2.5 Coder 32B (Groq Free)", "provider": "groq"},
 ]
 
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen/qwen-2.5-coder-32b-instruct:free")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemini-2.5-flash")
 
 
 
 def get_api_credentials(selected_model: str = None):
-    provider = os.getenv("LLM_PROVIDER", "groq").lower()
+    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
     
     openrouter_key = os.getenv("OPENROUTER_API_KEY", "")
     groq_key = os.getenv("GROQ_API_KEY", "")
@@ -53,11 +53,12 @@ def get_api_credentials(selected_model: str = None):
         return "https://api.groq.com/openai/v1/chat/completions", groq_key, selected_model or "llama-3.1-8b-instant"
     elif openai_key:
         return "https://api.openai.com/v1/chat/completions", openai_key, selected_model or "gpt-4o-mini"
-    elif gemini_key:
-        return f"https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", gemini_key, selected_model or "gemini-1.5-flash"
+    elif provider == "gemini" and gemini_key:
+        return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", gemini_key, selected_model or "gemini-2.5-flash"
     else:
-        # Local Ollama Fallback if no cloud API key is configured
-        return "http://localhost:11434/v1/chat/completions", "", selected_model or "qwen2.5-coder:3b"
+         raise RuntimeError(
+        "No Gemini API key is configured. Set GEMINI_API_KEY in Render."
+    )
 
 
 def format_messages(messages: list):
