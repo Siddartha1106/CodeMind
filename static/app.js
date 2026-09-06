@@ -346,29 +346,231 @@ document.getElementById("navLibrary").onclick = async () => {
   openModal("Conversations Library", contentHtml);
 };
 
-document.getElementById("navProjects").onclick = () => {
-  openModal("Projects Workspace", `
-    <p style="color:var(--text-muted);">Organize your code sessions into specialized project workspaces:</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-      <div style="background:#212121;padding:1rem;border-radius:10px;border:1px solid var(--border-subtle);">
-        <strong style="color:var(--text-primary);">🌐 Web Applications</strong>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">FastAPI, React, HTML/CSS projects</p>
+/* =========================================================
+   PROJECTS
+   ========================================================= */
+
+let projects = JSON.parse(localStorage.getItem("codemind_projects") || "[]");
+
+function saveProjects() {
+  localStorage.setItem("codemind_projects", JSON.stringify(projects));
+}
+
+function renderProjectsPage() {
+  openModal("Projects", `
+    <div class="projects-page">
+      <div class="projects-toolbar">
+        <div class="project-search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+          </svg>
+          <input id="projectSearch" type="text" placeholder="Search projects" autocomplete="off">
+        </div>
+        <button id="newProjectBtn" class="project-new-btn">New</button>
       </div>
-      <div style="background:#212121;padding:1rem;border-radius:10px;border:1px solid var(--border-subtle);">
-        <strong style="color:var(--text-primary);">🐍 Python Scripts</strong>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">Data processing & backend algorithms</p>
+      <div class="project-tabs">
+        <button class="project-tab active" data-tab="all">All</button>
+        <button class="project-tab" data-tab="created">Created by you</button>
+        <button class="project-tab" data-tab="shared">Shared with you</button>
       </div>
-      <div style="background:#212121;padding:1rem;border-radius:10px;border:1px solid var(--border-subtle);">
-        <strong style="color:var(--text-primary);">🛡️ Cybersecurity</strong>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">Security audits & error debugging</p>
-      </div>
-      <div style="background:#212121;padding:1rem;border-radius:10px;border:1px solid var(--border-subtle);">
-        <strong style="color:var(--text-primary);">⚙️ API Integrations</strong>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">REST APIs & OAuth integrations</p>
-      </div>
+      <div id="projectsGrid" class="projects-grid"></div>
     </div>
   `);
-};
+
+  renderProjectCards();
+
+  document.getElementById("newProjectBtn").onclick = openCreateProject;
+  document.getElementById("projectSearch").oninput = e => renderProjectCards(e.target.value);
+
+  document.querySelectorAll(".project-tab").forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll(".project-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      renderProjectCards(document.getElementById("projectSearch").value);
+    };
+  });
+}
+
+function renderProjectCards(search = "") {
+  const grid = document.getElementById("projectsGrid");
+  if (!grid) return;
+
+  const query = search.toLowerCase().trim();
+  const filtered = projects.filter(p => p.name.toLowerCase().includes(query));
+
+  if (!filtered.length) {
+    grid.innerHTML = `
+      <div class="projects-empty">
+        <div class="projects-empty-icon">✦</div>
+        <h3>No projects yet</h3>
+        <p>Create a project to keep related chats, files and instructions together.</p>
+        <button id="emptyNewProject" class="project-new-btn">New project</button>
+      </div>`;
+    document.getElementById("emptyNewProject").onclick = openCreateProject;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(project => `
+    <div class="project-card" data-project-id="${project.id}">
+      <div class="project-card-top">
+        <div class="project-icon">${project.icon || "✦"}</div>
+        <button class="project-menu" data-menu-id="${project.id}" aria-label="Project options">•••</button>
+      </div>
+      <div class="project-card-name">${escapeHtml(project.name)}</div>
+      <div class="project-card-description">${escapeHtml(project.description || "No description")}</div>
+      <div class="project-card-date">Created ${escapeHtml(project.createdAt)}</div>
+    </div>`).join("");
+
+  grid.querySelectorAll(".project-card").forEach(card => {
+    card.onclick = () => {
+      const project = projects.find(p => String(p.id) === String(card.dataset.projectId));
+      if (project) openProject(project);
+    };
+  });
+
+  grid.querySelectorAll(".project-menu").forEach(btn => {
+    btn.onclick = e => {
+      e.stopPropagation();
+      openProjectMenu(btn.dataset.menuId);
+    };
+  });
+}
+
+function openCreateProject() {
+  openModal("Create project", `
+    <div class="create-project-form">
+      <label>Project name</label>
+      <input id="projectNameInput" class="project-name-input" type="text" placeholder="Copenhagen Trip" autofocus>
+      <div class="project-info-box">
+        <div class="project-info-icon">♧</div>
+        <div>
+          <strong>Projects keep chats, files, and custom instructions in one place.</strong>
+          <p>Use them for ongoing work, or just to keep things tidy.</p>
+        </div>
+      </div>
+      <div class="project-memory-row">
+        <button id="memoryBtn" class="memory-btn">Default memory <span>⌄</span></button>
+        <div id="memoryOptions" class="memory-options" style="display:none;">
+          <button>Default memory</button>
+          <button>Project-only memory</button>
+        </div>
+      </div>
+      <div class="create-project-actions">
+        <button id="cancelProjectBtn" class="project-cancel-btn">Cancel</button>
+        <button id="createProjectBtn" class="project-create-btn">Create project</button>
+      </div>
+    </div>`);
+
+  const input = document.getElementById("projectNameInput");
+  input.focus();
+
+  document.getElementById("createProjectBtn").onclick = () => {
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+
+    projects.unshift({
+      id: Date.now(),
+      name,
+      description: "New CodeMind project",
+      icon: "✦",
+      memory: "default",
+      createdAt: new Date().toLocaleDateString()
+    });
+
+    saveProjects();
+    renderProjectsPage();
+  };
+
+  document.getElementById("cancelProjectBtn").onclick = renderProjectsPage;
+
+  const memoryBtn = document.getElementById("memoryBtn");
+  const memoryOptions = document.getElementById("memoryOptions");
+
+  memoryBtn.onclick = () => {
+    memoryOptions.style.display = memoryOptions.style.display === "none" ? "flex" : "none";
+  };
+
+  memoryOptions.querySelectorAll("button").forEach(button => {
+    button.onclick = () => {
+      memoryBtn.innerHTML = `${button.textContent} <span>⌄</span>`;
+      memoryOptions.style.display = "none";
+    };
+  });
+}
+
+function openProject(project) {
+  openModal(project.name, `
+    <div class="project-open-view">
+      <div class="project-open-icon">${project.icon || "✦"}</div>
+      <h2>${escapeHtml(project.name)}</h2>
+      <p>${escapeHtml(project.description || "Your project workspace")}</p>
+      <div class="project-open-actions">
+        <button id="startProjectChat" class="project-new-btn">Start new chat</button>
+        <button id="projectSettingsBtn" class="project-secondary-btn">Project settings</button>
+      </div>
+    </div>`);
+
+  document.getElementById("startProjectChat").onclick = () => {
+    closeModal();
+    const btn = document.getElementById("newChat");
+    if (btn) btn.click();
+  };
+
+  document.getElementById("projectSettingsBtn").onclick = () => editProject(project.id);
+}
+
+function openProjectMenu(id) {
+  const project = projects.find(p => String(p.id) === String(id));
+  if (!project) return;
+
+  openModal("Project options", `
+    <div class="project-options">
+      <button id="renameProjectOption">Rename project</button>
+      <button id="deleteProjectOption" class="danger-option">Delete project</button>
+    </div>`);
+
+  document.getElementById("renameProjectOption").onclick = () => editProject(project.id);
+  document.getElementById("deleteProjectOption").onclick = () => deleteProject(project.id);
+}
+
+function editProject(id) {
+  const project = projects.find(p => String(p.id) === String(id));
+  if (!project) return;
+
+  openModal("Project settings", `
+    <div class="create-project-form">
+      <label>Project name</label>
+      <input id="editProjectName" class="project-name-input" value="${escapeHtml(project.name)}">
+      <div class="create-project-actions">
+        <button id="editCancelBtn" class="project-cancel-btn">Cancel</button>
+        <button id="editSaveBtn" class="project-create-btn">Save</button>
+      </div>
+    </div>`);
+
+  document.getElementById("editCancelBtn").onclick = renderProjectsPage;
+  document.getElementById("editSaveBtn").onclick = () => {
+    const input = document.getElementById("editProjectName");
+    if (!input.value.trim()) return;
+    project.name = input.value.trim();
+    saveProjects();
+    renderProjectsPage();
+  };
+}
+
+function deleteProject(id) {
+  const project = projects.find(p => String(p.id) === String(id));
+  if (!project) return;
+  if (!confirm(`Delete "${project.name}"?`)) return;
+
+  projects = projects.filter(p => String(p.id) !== String(id));
+  saveProjects();
+  renderProjectsPage();
+}
+
+const projectsNavButton = document.getElementById("navProjects");
+if (projectsNavButton) projectsNavButton.onclick = renderProjectsPage;
+
 
 document.getElementById("navScheduled").onclick = () => {
   openModal("Scheduled Reminders & Code Health", `
@@ -386,46 +588,6 @@ document.getElementById("navScheduled").onclick = () => {
         </select>
       </div>
       <button onclick="alert('Scheduled task created!');closeModal();" style="background:var(--accent-green);border:none;color:#fff;padding:0.5rem;border-radius:6px;cursor:pointer;">Set Schedule</button>
-    </div>
-  `);
-};
-
-document.getElementById("navPlugins").onclick = () => {
-  openModal("Plugins & Developer Tools", `
-    <p style="color:var(--text-muted);">Enable specialized developer tools for your AI assistant:</p>
-    <div style="display:flex;flex-direction:column;gap:0.75rem;">
-      <div class="plugin-card">
-        <div class="plugin-info">
-          <h4>🧪 Code Interpreter / Executor</h4>
-          <p>Run Python code snippets and evaluate output automatically.</p>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" ${pluginsState.codeInterpreter ? 'checked' : ''} onchange="pluginsState.codeInterpreter = this.checked;">
-          <span class="slider"></span>
-        </label>
-      </div>
-
-      <div class="plugin-card">
-        <div class="plugin-info">
-          <h4>🌐 Web Search & Doc Finder</h4>
-          <p>Search upstream developer documentation & current web specs.</p>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" ${pluginsState.webSearch ? 'checked' : ''} onchange="pluginsState.webSearch = this.checked;">
-          <span class="slider"></span>
-        </label>
-      </div>
-
-      <div class="plugin-card">
-        <div class="plugin-info">
-          <h4>🛠️ Code Formatter & Linter</h4>
-          <p>Auto-format code blocks using PEP8 / Prettier standards.</p>
-        </div>
-        <label class="toggle-switch">
-          <input type="checkbox" ${pluginsState.autoFormatter ? 'checked' : ''} onchange="pluginsState.autoFormatter = this.checked;">
-          <span class="slider"></span>
-        </label>
-      </div>
     </div>
   `);
 };
@@ -567,7 +729,9 @@ if (sendBtnChat) sendBtnChat.onclick = () => send(promptChatEl);
 
 document.getElementById("newChat").onclick = () => renderConversation(null);
 document.getElementById("themeBtn").onclick = () => document.body.classList.toggle("light");
-document.getElementById("mobileMenu").onclick = () => sidebar.classList.toggle("open");
+document.getElementById("mobileMenu").onclick = () => {
+  sidebar.classList.toggle("sidebar-hidden");
+};
 
 document.querySelectorAll("[data-prompt]").forEach(b => {
   b.onclick = () => {
@@ -605,3 +769,67 @@ document.getElementById("exportBtn").onclick = async () => {
   await initModels();
   await refreshHistory();
 })();
+
+
+/* =========================================================
+   HEADER CONTROLS
+   ========================================================= */
+
+const shareBtn = document.getElementById("shareBtn");
+if (shareBtn) {
+  shareBtn.onclick = async () => {
+    if (!currentId) {
+      alert("Start a conversation before sharing.");
+      return;
+    }
+
+    const shareUrl = `${window.location.origin}/?conversation=${currentId}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "CodeMind conversation",
+          text: "Check out this CodeMind conversation.",
+          url: shareUrl
+        });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        alert("Conversation link copied to clipboard.");
+      } else {
+        prompt("Copy this conversation link:", shareUrl);
+      }
+    } catch (error) {
+      console.log("Share cancelled.");
+    }
+  };
+}
+
+const moreBtn = document.getElementById("moreBtn");
+if (moreBtn) {
+  moreBtn.onclick = () => {
+    openModal("More options", `
+      <div class="more-menu">
+        <button id="moreNewChat">New chat</button>
+        <button id="moreExport">Export conversation</button>
+        <button id="moreDelete" class="danger-option">Delete conversation</button>
+      </div>`);
+
+    document.getElementById("moreNewChat").onclick = () => {
+      closeModal();
+      const btn = document.getElementById("newChat");
+      if (btn) btn.click();
+    };
+
+    document.getElementById("moreExport").onclick = () => {
+      closeModal();
+      const btn = document.getElementById("exportBtn");
+      if (btn) btn.click();
+    };
+
+    document.getElementById("moreDelete").onclick = () => {
+      closeModal();
+      const btn = document.getElementById("deleteBtn");
+      if (btn) btn.click();
+    };
+  };
+}
